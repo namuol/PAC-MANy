@@ -23,6 +23,7 @@ define 'TitleScreen', [
       @spacing = 0.85
       @lineHeight = 0.75
       super
+      @startX = @x
       @title = @addChild new SpriteActor
         y: -100
         anchor:
@@ -52,7 +53,6 @@ define 'TitleScreen', [
         #   scaleY: 1
       @titleTweenB.onComplete.add => @titleTweenA.start()
 
-      @input.mapKey cg.K_Q, 'back'
       @visible = false
       @alpha = 0
       @pause()
@@ -60,10 +60,14 @@ define 'TitleScreen', [
       @tweenIn = @tween
         values:
           alpha: 1
+          x: @startX
         duration: 150
+        easeFunc: Tween.Back.Out
       
       @tweenIn.onStart.add =>
+        @title.y = -100
         @visible = true
+      @tweenIn.onComplete.add =>
         @titleTweenIn.start()
 
       @tweenOut = @tween
@@ -96,9 +100,9 @@ define 'TitleScreen', [
 
       @items[STR].onSelect.add =>
         @hide =>
-          # levelSelect = cg.app.levelSelect
-          # levelSelect.setBackCallback =>
-          #   @show()
-          # levelSelect.show()
+          levelSelect = cg.app.levelSelectScreen
+          levelSelect.onBack.addOnce =>
+            @show()
+          levelSelect.show()
 
       super

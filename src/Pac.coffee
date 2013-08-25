@@ -52,7 +52,7 @@ define 'Pac', [
 
       @reset()
 
-      @collisionMaps = [cg.app.map]
+      @collisionMaps = [cg.app.world.map]
 
       LEFT = @width * 0.1
       RIGHT = @width * 0.9
@@ -94,10 +94,10 @@ define 'Pac', [
     play: ->
       @startWantToGo = @wantToGo
       @actions = {}
-      @actions.left = new InputRecord cg.app.actions.left
-      @actions.right = new InputRecord cg.app.actions.right
-      @actions.up = new InputRecord cg.app.actions.up
-      @actions.down = new InputRecord cg.app.actions.down
+      @actions.left = new InputRecord cg.app.world.actions.left
+      @actions.right = new InputRecord cg.app.world.actions.right
+      @actions.up = new InputRecord cg.app.world.actions.up
+      @actions.down = new InputRecord cg.app.world.actions.down
       for own k,a of @actions
         a.record()
 
@@ -127,12 +127,12 @@ define 'Pac', [
         easeFunc: Tween.Elastic.Out
       t.start()
     update: ->
-      return  unless cg.app.going
+      return  unless cg.app.world.going
       return  if @dead
 
       super
 
-      map = cg.app.map
+      map = cg.app.world.map
       if @x < 0
         @x = map.mapWidth*map.tileWidth
       else if @x > map.mapWidth*map.tileWidth
@@ -190,14 +190,14 @@ define 'Pac', [
         # Align to grid horizontally:
         ty = Math.ceil(Math.floor(@y/16)*16 + 8) - 0.5
         @y += (ty - @y) * 0.3
-        # @v.x *= 1 + 0.5*Math.sin(cg.app.ticks * 0.6)
+        # @v.x *= 1 + 0.5*Math.sin(cg.app.world.ticks * 0.6)
       else
         # Align to grid vertically:
         tx = Math.ceil(Math.floor(@x/16)*16 + 8) - 0.5
         @x += (tx - @x) * 0.3
-        # @v.y *= 1 + 0.5*Math.sin(cg.app.ticks * 0.6)
+        # @v.y *= 1 + 0.5*Math.sin(cg.app.world.ticks * 0.6)
 
-      for pac in cg.app.layers.pacs.children
+      for pac in cg.app.world.layers.pacs.children
         continue  if pac is @
         continue  if pac.dead
 
@@ -208,7 +208,7 @@ define 'Pac', [
 
       return  if @evil
 
-      for dot in cg.app.layers.dots.children
+      for dot in cg.app.world.layers.dots.children
         continue  if dot.eaten
 
         if dot.touches @

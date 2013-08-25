@@ -11,9 +11,8 @@ define 'GameWorld', [
   'combo/Tween'
   'combo/tile/BitwiseTileMap'
   'combo/text/BitmapFont'
+  'combo/input/MultiTrigger'
   'Pac'
-  'LoadingScreen'
-  'TitleScreen'
 ], (
   cg
   util
@@ -27,65 +26,13 @@ define 'GameWorld', [
   Tween
   BitwiseTileMap
   BitmapFont
+  MultiTrigger
   Pac
-  LoadingScreen
-  TitleScreen
 ) ->
 
   SCR_W = 352
   SCR_H = 352
   
-  levels = [
-    [
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '   ################   '
-      '   #0.............#   '
-      '   ################   '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-      '                      '
-    ]
-
-    [
-      '     # #      # #     '
-      ' #####.########.##### '
-      ' #    .        .    # '
-      ' #    .        .    # '
-      ' #    .        .    # '
-      '##    .        .    ##'
-      ' ......        ...... '
-      '##                  ##'
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      '##                  ##'
-      ' ......        ...... '
-      '##    .        .    ##'
-      ' #    .        .    # '
-      ' #    .        .    # '
-      ' #    .        .    # '
-      ' #####.########.##### '
-      '     # #      # #     '
-    ]
-  ]
 
   class SpawnPoint extends SpriteActor
 
@@ -119,12 +66,26 @@ define 'GameWorld', [
       super
 
       @input.mapKey cg.K_R, 'reset'
+      @input.mapKey cg.K_Q, 'back'
       @input.mapKey cg.K_UP, 'up'
       @input.mapKey cg.K_LEFT, 'left'
       @input.mapKey cg.K_DOWN, 'down'
       @input.mapKey cg.K_RIGHT, 'right'
-      @input.mapKey [cg.K_UP, cg.K_LEFT, cg.K_DOWN, cg.K_RIGHT], 'any'
+      @actions.any = new MultiTrigger @input
+      @actions.any.addTrigger @actions.up
+      @actions.any.addTrigger @actions.left
+      @actions.any.addTrigger @actions.down
+      @actions.any.addTrigger @actions.right
 
+      @actions.reset.onHit.add =>
+        @refreshMap()
+        @resetLevel()
+
+      @actions.back.onHit.add =>
+        @hide =>
+          cg.app.levelSelectScreen.show()
+
+      # Editor Keys
       @input.mapKey cg.K_0, '_0'
       @input.mapKey cg.K_1, '_1'
       @input.mapKey cg.K_2, '_2'
@@ -136,28 +97,63 @@ define 'GameWorld', [
       @input.mapKey cg.K_8, '_8'
       @input.mapKey cg.K_9, '_9'
 
-      @sheet = TextureGrid.create 'gfx', 13,13
+      @input.onKeyPress.add (charCode) =>
+        return true  if not @editing
+        switch String.fromCharCode charCode
+          when 'w'
+            top = @mapData[0]
+            @mapData = @mapData.splice(1)
+            @mapData.push top
+            @refreshMap()
+            @resetLevel()
+          when 's'
+            bottom = @mapData.pop()
+            @mapData.splice(0,0,bottom)
+            @refreshMap()
+            @resetLevel()
+        return true
 
-      @map = BitwiseTileMap.create @gfx.tiles, 22,22, 16,16
-      @addChild @map, 'walls'
+      @map = BitwiseTileMap.create cg.app.gfx.tiles, 22,22, 16,16
+      @addChild @map
 
       # @layers.pacs.x = @layers.pacs.y = @layers.walls.x = @layers.walls.y = -16
       @editing = true
 
       @onLevelChange = new Signal
       @onLevelChange.add =>
-        $('textarea').html @mapData.join('\n')
+        document.getElementById('levelText').value = @mapData.join('\n')
       
-      @titleScreen = @addChild new TitleScreen
-        x: @width - 25
-        scaleX: 4
-        scaleY: 4
-      @titleScreen.y = @height - (@titleScreen.scaleY * @titleScreen.height) - 25
-      @titleScreen.hide()
+      # @loadLevel 0
+      # @resetLevel()
 
-      @loadLevel 0
-      @resetLevel()
-    
+      @alpha = 0
+      @tweenIn = @tween
+        values:
+          alpha: 1
+        duration: 250
+      
+      @tweenIn.onStart.add =>
+        @visible = true
+
+      @tweenOut = @tween
+        values:
+          alpha: 0
+        duration: 250
+      
+      @tweenOut.onComplete.add =>
+        @visible = false
+        return
+
+    hide: (cb) ->
+      @pause()
+      @tweenOut.onComplete.addOnce cb  if cb?
+      @tweenOut.start()
+
+    show: (cb) ->
+      @resume()
+      @tweenIn.onComplete.addOnce cb  if cb?
+      @tweenIn.start()
+
     refreshMap: ->
       @layers.pacs.clearChildren()
       @layers.spawnPoints.clearChildren()
@@ -181,18 +177,18 @@ define 'GameWorld', [
               spawnPoint = new SpawnPoint
                 x: x * 16
                 y: y * 16
-                texture: @sheet[30 + parseInt(tile)]
+                texture: cg.app.sheet[30 + parseInt(tile)]
                 alpha: 0.5
                 number: parseInt(tile)
               @spawnPoints[parseInt(tile)] = @addChild spawnPoint, 'spawnPoints'
       @onLevelChange.dispatch null
 
     loadLevel: (number) ->
-      @mapData = levels[number]
-
+      @mapData = cg.app.levels[number].map
       @refreshMap()
     
     resetLevel: ->
+      @nextPacDelay?.stop()
       @currentSpawnPoint = 0
       @going = false
       @nextPac()
@@ -201,13 +197,13 @@ define 'GameWorld', [
       for pac in @layers.pacs.children
         pac.replay()
 
-      return  if @currentSpawnPoint >= @spawnPoints.length
+      spawnPoint = @spawnPoints[@currentSpawnPoint]
+      return  if not spawnPoint?
 
       @canGo = false
-
       @pac = new Pac
-        x: @spawnPoints[@currentSpawnPoint].x + 8 - 0.5
-        y: @spawnPoints[@currentSpawnPoint].y + 8 - 0.5
+        x: spawnPoint.x + 8 - 0.5
+        y: spawnPoint.y + 8 - 0.5
         number: @currentSpawnPoint
 
       @addChild @pac, 'pacs'
@@ -217,16 +213,22 @@ define 'GameWorld', [
       @delay 500, => @canGo = true
 
     update: ->
-      if @canGo and (not @going) and @actions.any.hit()
-        @ticks = 0
+      went = false
+      if @canGo and (not @going)
+        went = true
         if @actions.left.hit()
           @pac.wantToGo = 'LEFT'
-        if @actions.right.hit()
+        else if @actions.right.hit()
           @pac.wantToGo = 'RIGHT'
-        if @actions.up.hit()
+        else if @actions.up.hit()
           @pac.wantToGo = 'UP'
-        if @actions.down.hit()
+        else if @actions.down.hit()
           @pac.wantToGo = 'DOWN'
+        else
+          went = false
+        
+      if @canGo and (not @going) and went
+        @ticks = 0
         @pac.play()
         @going = true
         @nextPacDelay?.stop()

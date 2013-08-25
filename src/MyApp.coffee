@@ -10,9 +10,10 @@ define 'MyApp', [
   'combo/Tween'
   'combo/tile/BitwiseTileMap'
   'combo/text/BitmapFont'
-  'Pac'
   'LoadingScreen'
   'TitleScreen'
+  'LevelSelectScreen'
+  'GameWorld'
 ], (
   cg
   util
@@ -25,14 +26,67 @@ define 'MyApp', [
   Tween
   BitwiseTileMap
   BitmapFont
-  Pac
   LoadingScreen
   TitleScreen
+  LevelSelectScreen
+  GameWorld
 ) ->
 
   SCR_W = 352
   SCR_H = 352
-  
+
+  levels = [
+      map: [
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '   ################   '
+        '   #0.............#   '
+        '   ##############.#   '
+        '   #..............#   '
+        '   #.##############   '
+        '   #..............#   '
+        '   ################   '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+        '                      '
+      ]
+    ,
+      map: [
+        ' # # # # #  # # # # # '
+        '##.#.#.#.####.#.#.#.# '
+        ' .. . . .    . . . .. '
+        '##  . . .    . . .  # '
+        ' .... . .    . . .... '
+        '##    . .    . .    ##'
+        ' ...... .    . ...... '
+        '##      .    .      ##'
+        ' .......0    1....... '
+        '##                  ##'
+        ' #                  # '
+        ' #                  # '
+        '##                  ##'
+        ' .......3    2....... '
+        '##      .    .      ##'
+        ' ...... .    . ...... '
+        '##    . .    . .    ##'
+        ' .... . .    . . .... '
+        '##  . . .    . . .  ##'
+        ' .. . . .    . . . .. '
+        '##.#.#.#.####.#.#.#.##'
+        ' # #.# # #  # # # # # '
+      ]
+  ]
+
   MyApp = (App) ->
     class _MyApp extends App
       displayMode: 'pixel'
@@ -49,6 +103,7 @@ define 'MyApp', [
       constructor: ->
         super
         @onPostPreload = new Signal
+        @levels = levels
 
       run: ->
         @assets.loadTexture('assets/font.png').then((fontTexture) =>
@@ -86,12 +141,24 @@ define 'MyApp', [
 
         @titleScreen = @addChild new TitleScreen
           x: @width/2
-        @titleScreen.y = 0
         @titleScreen.show()
+
+        @levelSelectScreen = @addChild new LevelSelectScreen
+          scaleX: 2
+          scaleY: 2
+          x: @width/2
+          y: @height/2
+        @levelSelectScreen.hide()
+
+        @world = @addChild new GameWorld
+        @world.hide()
 
         @addChild new SpriteActor
           texture: @gfx.offscreen
-          alpha: 0.5
+          alpha: 0.8
+
+        @sheet = TextureGrid.create 'gfx', 13,13
+
     return _MyApp
 
   return MyApp

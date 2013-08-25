@@ -7,28 +7,27 @@ define 'InputRecord', [
   class InputRecord extends Trigger
     constructor: (@child, @hits=[], @releases=[]) ->
       super
-      @_trigger = @child.trigger
-      @_release = @child.release
-      @child.trigger = =>
+      # @_trigger = @child.trigger
+      # @_release = @child.release
+      @child.onHit.add =>
         if not @playing
           @trigger()
-      @child.release = =>
+      @child.onRelease.add =>
         if not @playing
           @release()
       @recording = true
       @playing = false
       @ticks = 0
-      @__input = @input
+      # @__input = @input
 
     rewind: ->
       @ticks = 0
       @lastPressedTime = @child.lastPressedTime = -2
       @lastReleasedTime = @child.lastReleasedTime = -1
-      @currentTime = @child.currentTime = 0
     record: ->
       # TODO HACK:
-      @input = @__input
-      @child.input = @__input
+      # @input = @__input
+      # @child.input = @__input
 
       @recording = true
       @playing = false
@@ -37,8 +36,8 @@ define 'InputRecord', [
       @releases = []
     play: ->
       # TODO HACK:
-      @input = @child.input =
-        paused: false
+      # @input = @child.input =
+      #   paused: false
 
       @recording = false
       @playing = true
