@@ -29,15 +29,19 @@ define 'Pac', [
       y: 0.5
     constructor: ->
       super
-      @anim = cg.app.sheet.anim [0,1,2,3,4,5,4,3,2,1], 17
+      @anims ?= {}
+      @anims.normal = cg.app.sheet.anim [0,1,2,3,4,5,4,3,2,1], 17
+      @anims.evil = cg.app.sheet.anim [10,11,12,13,14,15,14,13,12,11], 17
+      @anim = @anims.normal
       @behaviors.push cg.HasPhysics
       @behaviors.push Hotspot.HasHotspots
       @startX = @x
       @startY = @y
-
+      cg.log 'NUMBER: ' + @number
     init: ->
-      @reset()
       super
+
+      @reset()
       @width = 13
       @height = 13
       @bounce = 0
@@ -78,7 +82,25 @@ define 'Pac', [
 
     reset: ->
       @going = 'RIGHT'
-      @ticks = 0
+      @wantToGo = null
+      @x = @startX
+      @y = @startY
+      @v.x = 0
+      @v.y = 0
+      @dead = false
+      @alpha = 1
+
+    play: ->
+      for own k,a of @actions
+        a.record()
+
+    replay: ->
+      @anim = @anims.evil
+      @texture = @anim.getFrame(0)
+      @reset()
+      @evil = true
+      for own k,a of @actions
+        a.play()
 
     canGo: (direction) ->
       return false  if not direction?
@@ -88,9 +110,13 @@ define 'Pac', [
       else
         diff = Math.round(Math.floor(@y/16)*16 + 8) - 0.5 - @y
       (Math.abs(diff) <= 3) and (not (@hotspots[direction+'_DETECT'].didCollide or @hotspots[direction+'_DETECT2'].didCollide))
-    
+
     update: ->
+      return  unless cg.app.going
+      return  if @dead
+
       super
+
       map = cg.app.map
       if @x < 0
         @x = map.mapWidth*map.tileWidth
@@ -101,6 +127,9 @@ define 'Pac', [
         @y = map.mapHeight*map.tileHeight
       else if @y > map.mapHeight*map.tileHeight
         @y = 0
+      
+      for own k,a of @actions
+        a.update()
 
       if @actions.left.hit()
         @wantToGo = 'LEFT'
@@ -146,13 +175,28 @@ define 'Pac', [
         # Align to grid horizontally:
         ty = Math.ceil(Math.floor(@y/16)*16 + 8) - 0.5
         @y += (ty - @y) * 0.3
-        @v.x *= 1 + 0.5*Math.sin(cg.app.ticks * 0.6)
+        # @v.x *= 1 + 0.5*Math.sin(cg.app.ticks * 0.6)
       else
         # Align to grid vertically:
         tx = Math.ceil(Math.floor(@x/16)*16 + 8) - 0.5
         @x += (tx - @x) * 0.3
-        @v.y *= 1 + 0.5*Math.sin(cg.app.ticks * 0.6)
+        # @v.y *= 1 + 0.5*Math.sin(cg.app.ticks * 0.6)
 
+      for pac in cg.app.layers.pacs.children
+        continue  if pac is @
+        continue  if pac.dead
+
+        if (pac.number < @number) and pac.touches @
+          @alpha = 0
+          @dead = true
+          pac.scaleX = pac.scaleY = 1.5
+          t = pac.tween
+            duration: 500
+            values:
+              scaleX: 1
+              scaleY: 1
+            easeFunc: Tween.Elastic.Out
+          t.start()
 
 
   return Pac
