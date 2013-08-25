@@ -8,6 +8,7 @@ define 'Pac', [
   'Coffixi/primitives/Graphics'
   'combo/Tween'
   'combo/tile/Hotspot'
+  'InputRecord'
 ], (
   cg
   util
@@ -18,6 +19,7 @@ define 'Pac', [
   Graphics
   Tween
   Hotspot
+  InputRecord
 ) ->
 
   class Pac extends SpriteActor
@@ -30,6 +32,8 @@ define 'Pac', [
       @anim = cg.app.sheet.anim [0,1,2,3,4,5,4,3,2,1], 17
       @behaviors.push cg.HasPhysics
       @behaviors.push Hotspot.HasHotspots
+      @startX = @x
+      @startY = @y
 
     init: ->
       @reset()
@@ -65,12 +69,17 @@ define 'Pac', [
       @hotspots.RIGHT2 = new Hotspot.Right @, {y:BOTTOM,x:@width}
       @hotspots.RIGHT_DETECT = new Hotspot.Right @, {y:TOP,x:@width+PADDING}, false
       @hotspots.RIGHT_DETECT2 = new Hotspot.Right @, {y:BOTTOM,x:@width+PADDING}, false
-      
-      @directionQueue = []
+
+      @actions = {}
+      @actions.left = new InputRecord cg.app.actions.left
+      @actions.right = new InputRecord cg.app.actions.right
+      @actions.up = new InputRecord cg.app.actions.up
+      @actions.down = new InputRecord cg.app.actions.down
 
     reset: ->
       @going = 'RIGHT'
       @ticks = 0
+
     canGo: (direction) ->
       return false  if not direction?
 
@@ -79,35 +88,33 @@ define 'Pac', [
       else
         diff = Math.round(Math.floor(@y/16)*16 + 8) - 0.5 - @y
       (Math.abs(diff) <= 3) and (not (@hotspots[direction+'_DETECT'].didCollide or @hotspots[direction+'_DETECT2'].didCollide))
+    
     update: ->
       super
-      if @x < -8
-        @x = cg.app.width + 8
-      else if @x > cg.app.width + 8
-        @x = -8
+      map = cg.app.map
+      if @x < 0
+        @x = map.mapWidth*map.tileWidth
+      else if @x > map.mapWidth*map.tileWidth
+        @x = 0
 
-      if @y < -8
-        @y = cg.app.height + 8
-      else if @y > cg.app.height + 8
-        @y = -8
-      actions = cg.app.actions
+      if @y < 0
+        @y = map.mapHeight*map.tileHeight
+      else if @y > map.mapHeight*map.tileHeight
+        @y = 0
 
-      if actions.left.hit()
-        @directionQueue.push 'LEFT'
-      if actions.right.hit()
-        @directionQueue.push 'RIGHT'
-      if actions.up.hit()
-        @directionQueue.push 'UP'
-      if actions.down.hit()
-        @directionQueue.push 'DOWN'
+      if @actions.left.hit()
+        @wantToGo = 'LEFT'
+      if @actions.right.hit()
+        @wantToGo = 'RIGHT'
+      if @actions.up.hit()
+        @wantToGo = 'UP'
+      if @actions.down.hit()
+        @wantToGo = 'DOWN'
 
       if @wantToGo isnt @going
         if @canGo @wantToGo
           @going = @wantToGo
           @wantToGo = null
-
-      if (not @wantToGo? or (@v.x is 0 and @v.y is 0)) and @directionQueue.length > 0
-        [@wantToGo] = @directionQueue.splice 0,1
 
       @v.x = @v.y = 0
       switch @going
