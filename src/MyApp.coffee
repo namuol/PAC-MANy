@@ -9,7 +9,10 @@ define 'MyApp', [
   'combo/util/Signal'
   'combo/Tween'
   'combo/tile/BitwiseTileMap'
+  'combo/text/BitmapFont'
   'Pac'
+  'LoadingScreen'
+  'TitleScreen'
 ], (
   cg
   util
@@ -21,67 +24,15 @@ define 'MyApp', [
   Signal
   Tween
   BitwiseTileMap
+  BitmapFont
   Pac
+  LoadingScreen
+  TitleScreen
 ) ->
 
   SCR_W = 352
   SCR_H = 352
   
-  levels = [
-    [
-      '     # #      # #     '
-      ' ##### ######## ##### '
-      ' #0    #      #    1# '
-      ' # #####      ##### # '
-      ' # #              # # '
-      '## #              # ##'
-      '   #              #   '
-      '####              ####'
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      '####              ####'
-      '   #              #   '
-      '## #              # ##'
-      ' # #              # # '
-      ' # #####      ##### # '
-      ' #3    #      #    2# '
-      ' ##### ######## ##### '
-      '     # #      # #     '
-    ]
-
-    [
-      '     # #      # #     '
-      ' #####.########.##### '
-      ' #    .        .    # '
-      ' #    .        .    # '
-      ' #    .        .    # '
-      '##    .        .    ##'
-      ' ......        ...... '
-      '##                  ##'
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      ' #                  # '
-      '##                  ##'
-      ' ......        ...... '
-      '##    .        .    ##'
-      ' #    .        .    # '
-      ' #    .        .    # '
-      ' #    .        .    # '
-      ' #####.########.##### '
-      '     # #      # #     '
-    ]
-  ]
-
-  class SpawnPoint extends SpriteActor
-
-
   MyApp = (App) ->
     class _MyApp extends App
       displayMode: 'pixel'
@@ -92,157 +43,55 @@ define 'MyApp', [
       gfx:
         gfx: 'assets/gfx.png'
         tiles: 'assets/tiles.png'
+        offscreen: 'assets/offscreen.png'
+        title: 'assets/title.png'
       allowSfxFailures: true
-      layers: [
-        'dots'
-        'spawnPoints'
-        'pacs'
-        'walls'
-      ]
-      ticks: 0
+      constructor: ->
+        super
+        @onPostPreload = new Signal
+
+      run: ->
+        @assets.loadTexture('assets/font.png').then((fontTexture) =>
+          @assets.font = fontTexture
+          @font = new BitmapFont fontTexture
+
+          @init()
+          
+          @loadingScreen = @addChild new LoadingScreen
+          @loadingScreen.onHide.addOnce =>
+            @onPostPreload.dispatch @
+          @loadingScreen.show()
+
+          @preload
+            error: (src) =>
+              cg.error 'Failed to load asset ' + src
+            progress: (src, asset, number, count) =>
+              cg.log 'Loaded asset ' + src
+              @loadingScreen.setText Math.round(number/count*100) + '%'
+              @lastCall = Date.now()
+              @update()
+              @draw()
+            complete: =>
+              @postInit()
+              @lastCall = Date.now()
+              @mainLoop()
+              @loadingScreen.hide()
+        ).then null, (err) ->
+          cg.error 'FONT LOAD ERROR: ' + err
+          throw new Error 'Could not load font.png ... aborting!!!'
       init: ->
         super
-        @input.mapKey cg.K_R, 'reset'
-        @input.mapKey cg.K_UP, 'up'
-        @input.mapKey cg.K_LEFT, 'left'
-        @input.mapKey cg.K_DOWN, 'down'
-        @input.mapKey cg.K_RIGHT, 'right'
-        @input.mapKey [cg.K_UP, cg.K_LEFT, cg.K_DOWN, cg.K_RIGHT], 'any'
-
-        @input.mapKey cg.K_0, '_0'
-        @input.mapKey cg.K_1, '_1'
-        @input.mapKey cg.K_2, '_2'
-        @input.mapKey cg.K_3, '_3'
-        @input.mapKey cg.K_4, '_4'
-        @input.mapKey cg.K_5, '_5'
-        @input.mapKey cg.K_6, '_6'
-        @input.mapKey cg.K_7, '_7'
-        @input.mapKey cg.K_8, '_8'
-        @input.mapKey cg.K_9, '_9'
-
         @stage.setBackgroundColor 0x394f64
-        @sheet = TextureGrid.create 'gfx', 13,13
+      postInit: ->
 
-        @map = BitwiseTileMap.create @gfx.tiles, 22,22, 16,16
-        @addChild @map, 'walls'
+        @titleScreen = @addChild new TitleScreen
+          x: @width/2
+        @titleScreen.y = 0
+        @titleScreen.show()
 
-        # @layers.pacs.x = @layers.pacs.y = @layers.walls.x = @layers.walls.y = -16
-
-        @onLevelChange = new Signal
-        @onLevelChange.add =>
-          $('textarea').html @mapData.join('\n')
-
-        @loadLevel 0
-        @nextPac()
-        @editing = true
-      
-      refreshMap: ->
-        @layers.pacs.clearChildren()
-        @layers.spawnPoints.clearChildren()
-
-        @currentSpawnPoint = 0
-        @spawnPoints = []
-        for row,y in @mapData
-          continue if y >= @map.height
-          for tile,x in row
-            continue if x >= @map.height
-            @map.setSolid x,y, tile is '#'
-            switch tile
-              when '.'
-                1
-                # DOT
-              when 'o'
-                2
-                # POWER-PILL
-              when '0','1','2','3','4','5','6','7','8','9'
-                spawnPoint = new SpawnPoint
-                  x: x * 16
-                  y: y * 16
-                  texture: @sheet[30 + parseInt(tile)]
-                  alpha: 0.5
-                  number: parseInt(tile)
-                @spawnPoints[parseInt(tile)] = @addChild spawnPoint, 'spawnPoints'
-        @onLevelChange.dispatch null
-
-      loadLevel: (number) ->
-        @mapData = levels[number]
-
-        @refreshMap()
-
-      nextPac: ->
-        for pac in @layers.pacs.children
-          pac.replay()
-
-        return  if @currentSpawnPoint >= @spawnPoints.length
-
-        @canGo = false
-
-        @pac = new Pac
-          x: @spawnPoints[@currentSpawnPoint].x + 8 - 0.5
-          y: @spawnPoints[@currentSpawnPoint].y + 8 - 0.5
-          number: @currentSpawnPoint
-
-        @addChild @pac, 'pacs'
-
-        @going = false
-        ++@currentSpawnPoint
-        @delay 3000, => @canGo = true
-
-      update: ->
-        if @canGo and (not @going) and @actions.any.hit()
-          @ticks = 0
-          @pac.play()
-          @going = true
-          @delay 10000, =>
-            @nextPac()
-
-        if @editing
-          {x: x, y: y} = @map.tileCoordsAt @input.mouse.x, @input.mouse.y
-          x = util.clamp x, 0, @map.mapWidth-1
-          y = util.clamp y, 0, @map.mapHeight-1
-          current = @mapData[y][x]
-
-          ch = null
-          if @actions.LMB.hit()
-            if current isnt ' '
-              ch = ' '
-              @editorErasing = true
-            else
-              ch = '#'
-              @editorErasing = false
-
-          if @actions.LMB.held()
-            if @editorErasing
-              ch = ' '
-            else
-              ch = '#'
-          ch = '.' if @actions.RMB.held()
-          ch = 'o' if @actions.MMB.hit()
-          ch = '0' if @actions._0.hit()
-          ch = '1' if @actions._1.hit()
-          ch = '2' if @actions._2.hit()
-          ch = '3' if @actions._3.hit()
-          ch = '4' if @actions._4.hit()
-          ch = '5' if @actions._5.hit()
-          ch = '6' if @actions._6.hit()
-          ch = '7' if @actions._7.hit()
-          ch = '8' if @actions._8.hit()
-          ch = '9' if @actions._9.hit()
-
-          if ch?
-            cg.log "prev (#{x},#{y}) : '#{current}'"
-            cg.log "now  (#{x},#{y}) : '#{ch}'"
-            @mapData[y] = @mapData[y].substr(0,x) + ch + @mapData[y].substr(x+1)
-            cg.log @mapData.join('\n')
-            @refreshMap()
-
-        super
-
-
-        return  if not @going
-
-        ++@ticks
-
+        @addChild new SpriteActor
+          texture: @gfx.offscreen
+          alpha: 0.5
     return _MyApp
 
   return MyApp

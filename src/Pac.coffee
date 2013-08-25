@@ -37,14 +37,20 @@ define 'Pac', [
       @behaviors.push Hotspot.HasHotspots
       @startX = @x
       @startY = @y
-      cg.log 'NUMBER: ' + @number
+
+      @width = 13
+      @height = 13
+      @bounce = 0
+
+      @hitBox =
+        x: -2.5
+        y: -2.5
+        width: 5
+        height: 5
     init: ->
       super
 
       @reset()
-      @width = 13
-      @height = 13
-      @bounce = 0
 
       @collisionMaps = [cg.app.map]
 
@@ -74,15 +80,10 @@ define 'Pac', [
       @hotspots.RIGHT_DETECT = new Hotspot.Right @, {y:TOP,x:@width+PADDING}, false
       @hotspots.RIGHT_DETECT2 = new Hotspot.Right @, {y:BOTTOM,x:@width+PADDING}, false
 
-      @actions = {}
-      @actions.left = new InputRecord cg.app.actions.left
-      @actions.right = new InputRecord cg.app.actions.right
-      @actions.up = new InputRecord cg.app.actions.up
-      @actions.down = new InputRecord cg.app.actions.down
 
     reset: ->
       @going = 'RIGHT'
-      @wantToGo = null
+      @wantToGo = @startWantToGo
       @x = @startX
       @y = @startY
       @v.x = 0
@@ -91,6 +92,12 @@ define 'Pac', [
       @alpha = 1
 
     play: ->
+      @startWantToGo = @wantToGo
+      @actions = {}
+      @actions.left = new InputRecord cg.app.actions.left
+      @actions.right = new InputRecord cg.app.actions.right
+      @actions.up = new InputRecord cg.app.actions.up
+      @actions.down = new InputRecord cg.app.actions.down
       for own k,a of @actions
         a.record()
 
@@ -110,7 +117,15 @@ define 'Pac', [
       else
         diff = Math.round(Math.floor(@y/16)*16 + 8) - 0.5 - @y
       (Math.abs(diff) <= 3) and (not (@hotspots[direction+'_DETECT'].didCollide or @hotspots[direction+'_DETECT2'].didCollide))
-
+    nom: ->
+      @scaleX = @scaleY = 1.5
+      t = @tween
+        duration: 500
+        values:
+          scaleX: 1
+          scaleY: 1
+        easeFunc: Tween.Elastic.Out
+      t.start()
     update: ->
       return  unless cg.app.going
       return  if @dead
@@ -189,14 +204,15 @@ define 'Pac', [
         if (pac.number < @number) and pac.touches @
           @alpha = 0
           @dead = true
-          pac.scaleX = pac.scaleY = 1.5
-          t = pac.tween
-            duration: 500
-            values:
-              scaleX: 1
-              scaleY: 1
-            easeFunc: Tween.Elastic.Out
-          t.start()
+          pac.nom()
 
+      return  if @evil
+
+      for dot in cg.app.layers.dots.children
+        continue  if dot.eaten
+
+        if dot.touches @
+          dot.getEaten()
+          @nom()
 
   return Pac
