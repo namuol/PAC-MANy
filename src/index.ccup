@@ -1,0 +1,48 @@
+doctype 5
+html ->
+  head ->
+    title:'detangle'
+    meta name:'viewport', content:'width=device-width, initial-scale=1, maximum-scale=1'
+    script 'data-main':'main', src:'require.js'
+    style '''
+      * {
+        box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        overflow: hidden;
+      }
+      html {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: #666;
+        width: 100%;
+        height: 100%;
+      }
+
+      #container {
+        width: 100%;
+        height: 100%;
+        margin: 0 auto;
+        padding: 0;
+        background: black;
+        text-align: center;
+      }
+
+      canvas {
+        margin: 0 auto;
+        padding: 0;
+        image-rendering: optimizeSpeed;             /* Older versions of FF */
+        image-rendering: -moz-crisp-edges;          /* FF 6.0+ */
+        image-rendering: -webkit-optimize-contrast; /* Webkit */
+                                                    /*  (Safari now, Chrome soon) */
+        image-rendering: optimize-contrast;         /* Possible future browsers. */
+        -ms-interpolation-mode: nearest-neighbor;   /* IE */
+      }
+    '''
+  body ->
+    div id:'container'

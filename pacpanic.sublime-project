@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": ".",
+      "file_exclude_patterns": [
+        "*.js",
+        "*.html",
+        "*.css"
+      ],
+      "folder_exclude_patterns": [
+        "**/support",
+        "**/include",
+        "**/node_modules",
+        "**/assets",
+        "**/examples"
+      ]
+		}
+	],
+  "settings": {
+    "tab_size": 2
+  }
+}

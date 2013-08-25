@@ -1,0 +1,3 @@
+[submodule "support/combo"]
+	path = support/combo
+	url = git@github.com:namuol/combo.js.git
