@@ -9,6 +9,7 @@ define 'Pac', [
   'combo/Tween'
   'combo/tile/Hotspot'
   'InputRecord'
+  'combo/text/TextString'
 ], (
   cg
   util
@@ -20,18 +21,45 @@ define 'Pac', [
   Tween
   Hotspot
   InputRecord
+  TextString
 ) ->
 
+  class ScoreText extends TextString
+    init: ->
+      super
+      @alpha = 0
+      t1 = @tween
+        values:
+          alpha: 1
+          y: @y-24
+        easeFunc: Tween.Quadratic.Out
+        duration: 250
+      t2 = @tween
+        values:
+          y: @y-16
+        easeFunc: Tween.Bounce.Out
+        duration: 250
+      t1.onComplete.add => t2.start()
+      t1.start()
+
+  DEFAULT_SPEED = 90
+  POWERFUL_SPEED = 90
+
   class Pac extends SpriteActor
-    speed: 90
     anchor:
       x: 0.5
       y: 0.5
     constructor: ->
       super
+      @speed = DEFAULT_SPEED
       @anims ?= {}
       @anims.normal = cg.app.sheet.anim [0,1,2,3,4,5,4,3,2,1], 17
+      @anims.blink = cg.app.sheet.anim [50,51,52,53,54,55,54,53,52,51], 17, false
+
       @anims.evil = cg.app.sheet.anim [10,11,12,13,14,15,14,13,12,11], 17
+      @anims.edible = cg.app.sheet.anim [40,41,42,43,44,45,44,43,42,41], 17
+      @anims.powerful = cg.app.sheet.anim [60,61,62,63,64,65,64,63,62,61], 17
+
       @anim = @anims.normal
       @behaviors.push cg.HasPhysics
       @behaviors.push Hotspot.HasHotspots
@@ -80,6 +108,15 @@ define 'Pac', [
       @hotspots.RIGHT_DETECT = new Hotspot.Right @, {y:TOP,x:@width+PADDING}, false
       @hotspots.RIGHT_DETECT2 = new Hotspot.Right @, {y:BOTTOM,x:@width+PADDING}, false
 
+      blink = =>
+        return  if @evil or @powerful
+        @anim = @anims.normal
+        @delay util.range(1000, 4000), =>
+          return  if @evil or @powerful
+          @anim = @anims.blink
+          @anim.rewind()
+      @anims.blink.onComplete.add blink
+      blink()
 
     reset: ->
       @going = 'RIGHT'
@@ -90,6 +127,9 @@ define 'Pac', [
       @v.y = 0
       @dead = false
       @alpha = 1
+      @visible = true
+      @powerful = false
+      @speed = DEFAULT_SPEED
 
     play: ->
       @startWantToGo = @wantToGo
@@ -117,15 +157,39 @@ define 'Pac', [
       else
         diff = Math.round(Math.floor(@y/16)*16 + 8) - 0.5 - @y
       (Math.abs(diff) <= 3) and (not (@hotspots[direction+'_DETECT'].didCollide or @hotspots[direction+'_DETECT2'].didCollide))
-    nom: ->
-      @scaleX = @scaleY = 1.5
+    nom: (scale=1.5, duration=500) ->
+      @scaleX = @scaleY = scale
       t = @tween
-        duration: 500
+        duration: duration
         values:
           scaleX: 1
           scaleY: 1
         easeFunc: Tween.Elastic.Out
       t.start()
+    
+    makePowerful: ->
+      if not @evil
+        scoreText = new ScoreText cg.app.font, '1.0',
+          alignment: 'center'
+        scoreText.x = @x
+        scoreText.y = @y
+        cg.app.world.addChild scoreText, 'scoreText'
+        cg.app.world.timer.addBonus(1000)
+        @anim = @anims.powerful
+      @powerful = true
+
+    canEat: (other) ->
+      if @powerful
+        if other.powerful
+          return @number < other.number
+        else
+          return true
+      else
+        if other.powerful
+          return false
+        else
+          return @number > other.number
+
     update: ->
       return  unless cg.app.world.going
       return  if @dead
@@ -201,18 +265,28 @@ define 'Pac', [
         continue  if pac is @
         continue  if pac.dead
 
-        if (pac.number < @number) and pac.touches @
-          @alpha = 0
-          @dead = true
-          pac.nom()
-
-      return  if @evil
+        if @canEat(pac) and @touches(pac)
+          @nom 3, 700
+          pac.visible = false
+          pac.dead = true
 
       for dot in cg.app.world.layers.dots.children
         continue  if dot.eaten
 
         if dot.touches @
           dot.getEaten()
-          @nom()
+          if --cg.app.world.dotCount <= 0
+            scoreText = new ScoreText cg.app.font, cg.app.world.timer.timeString(),
+              alignment: 'center'
+            scoreText.x = @x
+            scoreText.y = @y
+            cg.app.world.addChild scoreText, 'scoreText'
+            cg.app.world.split = cg.app.world.timer.timeString()
+            @nom 4, 900
+          else
+            @nom()
+
+          if dot.power
+            @makePowerful()
 
   return Pac

@@ -14,6 +14,9 @@ define 'MyApp', [
   'TitleScreen'
   'LevelSelectScreen'
   'GameWorld'
+  'PauseScreen'
+  'ResultScreen'
+  'OptionScreen'
 ], (
   cg
   util
@@ -30,6 +33,9 @@ define 'MyApp', [
   TitleScreen
   LevelSelectScreen
   GameWorld
+  PauseScreen
+  ResultScreen
+  OptionScreen
 ) ->
 
   SCR_W = 352
@@ -99,6 +105,10 @@ define 'MyApp', [
         tiles: 'assets/tiles.png'
         offscreen: 'assets/offscreen.png'
         title: 'assets/title.png'
+        black: 'assets/black.png'
+        excellent: 'assets/excellent.png'
+        clear: 'assets/clear.png'
+        fail: 'assets/fail.png'
       allowSfxFailures: true
       constructor: ->
         super
@@ -138,26 +148,41 @@ define 'MyApp', [
         super
         @stage.setBackgroundColor 0x394f64
       postInit: ->
+        @sheet = TextureGrid.create 'gfx', 13,13
 
         @titleScreen = @addChild new TitleScreen
           x: @width/2
         @titleScreen.show()
 
-        @levelSelectScreen = @addChild new LevelSelectScreen
+        @levelSelect = @addChild new LevelSelectScreen
           scaleX: 2
           scaleY: 2
           x: @width/2
           y: @height/2
-        @levelSelectScreen.hide()
+        @levelSelect.hide()
 
         @world = @addChild new GameWorld
         @world.hide()
+        
+        @pauseScreen = @addChild new PauseScreen
+          x: @width/2
+          y: @height/2 - 0.5
+          scaleX: 4
+          scaleY: 4
 
-        @addChild new SpriteActor
-          texture: @gfx.offscreen
-          alpha: 0.8
+        @resultScreen = @addChild new ResultScreen
+          x: @width / 2
+          y: @height / 2 - 0.5
 
-        @sheet = TextureGrid.create 'gfx', 13,13
+        @optionScreen = @addChild new OptionScreen
+          x: @width / 2
+          y: @height / 2 - 0.5
+          scaleX: 4
+          scaleY: 4
+        @optionScreen.hide()
+
+        @offscreen = @addChild new SpriteActor
+          texture: "offscreen"
 
     return _MyApp
 

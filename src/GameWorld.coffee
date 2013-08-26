@@ -13,6 +13,7 @@ define 'GameWorld', [
   'combo/text/BitmapFont'
   'combo/input/MultiTrigger'
   'Pac'
+  'Timer'
 ], (
   cg
   util
@@ -28,6 +29,7 @@ define 'GameWorld', [
   BitmapFont
   MultiTrigger
   Pac
+  Timer
 ) ->
 
   SCR_W = 352
@@ -37,12 +39,15 @@ define 'GameWorld', [
   class SpawnPoint extends SpriteActor
 
   class Dot extends SpriteActor
-
     constructor: ->
       super
       @anims ?= {}
-      @anim = @anims.idle = cg.app.sheet.anim [20]
-      @anims.eaten = cg.app.sheet.anim [21]
+      if @power
+        @anims.idle = cg.app.sheet.anim [22]
+        @anims.eaten = cg.app.sheet.anim [23]
+      else
+        @anims.idle = cg.app.sheet.anim [20]
+        @anims.eaten = cg.app.sheet.anim [21]
       @width = 13
       @height = 13
       @hitBox =
@@ -50,6 +55,10 @@ define 'GameWorld', [
         y: 6
         width: 1
         height: 1
+      @reset()
+    reset: ->
+      @eaten = false
+      @anim = @anims.idle
     getEaten: ->
       @eaten = true
       @anim = @anims.eaten
@@ -58,15 +67,18 @@ define 'GameWorld', [
     layers: [
       'dots'
       'spawnPoints'
-      'pacs'
       'walls'
+      'pacs'
+      'offscreen'
+      'scoreText'
+      'timer'
     ]
     ticks: 0
     init: ->
       super
 
       @input.mapKey cg.K_R, 'reset'
-      @input.mapKey cg.K_Q, 'back'
+      @input.mapKey cg.K_Q, 'pause'
       @input.mapKey cg.K_UP, 'up'
       @input.mapKey cg.K_LEFT, 'left'
       @input.mapKey cg.K_DOWN, 'down'
@@ -81,9 +93,10 @@ define 'GameWorld', [
         @refreshMap()
         @resetLevel()
 
-      @actions.back.onHit.add =>
-        @hide =>
-          cg.app.levelSelectScreen.show()
+      @actions.pause.onHit.add =>
+        @pause()
+        cg.app.delay 0, =>
+          cg.app.pauseScreen.show()
 
       # Editor Keys
       @input.mapKey cg.K_0, '_0'
@@ -111,10 +124,29 @@ define 'GameWorld', [
             @mapData.splice(0,0,bottom)
             @refreshMap()
             @resetLevel()
+          when 'a'
+            for row,i in @mapData
+              left = row[0]
+              @mapData[i] = row.substr(1) + left
+            @refreshMap()
+            @resetLevel()
+          when 'd'
+            for row,i in @mapData
+              right = row[row.length - 1]
+              @mapData[i] = right + row.substr(0, row.length - 1)
+            @refreshMap()
+            @resetLevel()
         return true
 
+      @timer = @addChild new Timer, 'timer'
+      @timer.onDrain.add => @nextPac()
+
       @map = BitwiseTileMap.create cg.app.gfx.tiles, 22,22, 16,16
-      @addChild @map
+      @addChild @map, 'walls'
+
+      offscreen = new SpriteActor
+        texture: 'offscreen'
+      @addChild offscreen, 'offscreen'
 
       # @layers.pacs.x = @layers.pacs.y = @layers.walls.x = @layers.walls.y = -16
       @editing = true
@@ -134,6 +166,9 @@ define 'GameWorld', [
       
       @tweenIn.onStart.add =>
         @visible = true
+      
+      @tweenIn.onComplete.add =>
+        cg.app.offscreen?.visible = false
 
       @tweenOut = @tween
         values:
@@ -145,6 +180,7 @@ define 'GameWorld', [
         return
 
     hide: (cb) ->
+      cg.app.offscreen?.visible = true
       @pause()
       @tweenOut.onComplete.addOnce cb  if cb?
       @tweenOut.start()
@@ -158,6 +194,7 @@ define 'GameWorld', [
       @layers.pacs.clearChildren()
       @layers.spawnPoints.clearChildren()
       @layers.dots.clearChildren()
+      @layers.scoreText.clearChildren()
 
       @spawnPoints = []
       for row,y in @mapData
@@ -172,7 +209,11 @@ define 'GameWorld', [
                 y: y * 16 + 1
               @addChild dot, 'dots'
             when 'o'
-              2
+              powerPill = new Dot
+                x: x * 16 + 1
+                y: y * 16 + 1
+                power: true
+              @addChild powerPill, 'dots'
             when '0','1','2','3','4','5','6','7','8','9'
               spawnPoint = new SpawnPoint
                 x: x * 16
@@ -188,18 +229,27 @@ define 'GameWorld', [
       @refreshMap()
     
     resetLevel: ->
-      @nextPacDelay?.stop()
       @currentSpawnPoint = 0
       @going = false
+      @dotCount = @layers.dots.children.length
+      @timer.stop()
+      @timer.timeLeft = 10 * 1000
+      @timer.resetBonus()
       @nextPac()
 
     nextPac: ->
+      spawnPoint = @spawnPoints[@currentSpawnPoint]
+      if not spawnPoint?
+        @pause()
+        cg.app.resultScreen.show()
+        return
+
       for pac in @layers.pacs.children
         pac.replay()
 
-      spawnPoint = @spawnPoints[@currentSpawnPoint]
-      return  if not spawnPoint?
-
+      for dot in @layers.dots.children
+        dot.reset()
+      @dotCount = @layers.dots.children.length
       @canGo = false
       @pac = new Pac
         x: spawnPoint.x + 8 - 0.5
@@ -231,9 +281,7 @@ define 'GameWorld', [
         @ticks = 0
         @pac.play()
         @going = true
-        @nextPacDelay?.stop()
-        @nextPacDelay = @delay 10000, =>
-          @nextPac()
+        @timer.restart()
 
       if @editing
         {x: x, y: y} = @map.tileCoordsAt @input.mouse.x, @input.mouse.y

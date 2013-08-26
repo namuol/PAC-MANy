@@ -100,7 +100,7 @@ define 'TitleScreen', [
 
       @items[STR].onSelect.add =>
         @hide =>
-          levelSelect = cg.app.levelSelectScreen
+          levelSelect = cg.app.levelSelect
           levelSelect.onBack.addOnce =>
             @show()
           levelSelect.show()
