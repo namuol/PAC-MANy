@@ -4,12 +4,14 @@ define 'ResultScreen', [
   'VerticalMenu'
   'combo/Tween'
   'combo/SpriteActor'
+  'combo/text/TextString'
 ], (
   cg
   Scene
   VerticalMenu
   Tween
   SpriteActor
+  TextString
 ) ->
 
   class ResultScreen extends VerticalMenu
@@ -32,19 +34,19 @@ define 'ResultScreen', [
       super
 
       @layers.items.y = @layers.bg.y = 100
-      @layers.items.scaleX = @layers.items.scaleY = 4
-      @layers.bg.scaleX = @layers.bg.scaleY = 4
+      @layers.items.scaleX = @layers.items.scaleY = 2
+      @layers.bg.scaleX = @layers.bg.scaleY = 2
 
       bg = new SpriteActor
         texture: 'black'
         anchor:
           x: 0.5
           y: 0.5
-        scaleX: 75
-        scaleY: @height + 2
+        scaleX: 750
+        scaleY: 750
         x: 1
         y: -1
-        alpha: 0.8
+        alpha: 0.4
       
       @addChild bg, 'bg'
 
@@ -62,10 +64,29 @@ define 'ResultScreen', [
         anchor:
           x: 0.5
           y: 0.5
-        y: -50
+        y: -85
         visible: false
 
+      @excellent = @addChild new SpriteActor
+        texture: 'excellent'
+        anchor:
+          x: 0.5
+          y: 0.5
+        y: -85
+        visible: false
+
+      @excellentText = @addChild new TextString cg.app.font, ''
+      @excellentText.scaleX = @excellentText.scaleY = 2
+      @excellentText.x = -150
+      @excellentText.y = -20
+
+      @timeLeftText = @addChild new TextString cg.app.font, ''
+      @timeLeftText.scaleX = @timeLeftText.scaleY = 2
+      @timeLeftText.x = -150
+      @timeLeftText.y = 0
+
       @input.mapKey cg.K_Q, 'back'
+      @input.mapKey cg.K_R, 'retry'
 
       @visible = false
       @pause()
@@ -74,11 +95,9 @@ define 'ResultScreen', [
       # @scaleY = 12
 
       @tweenIn = @tween
-        duration: 150
-        easeFunc: Tween.Elastic.Out
-        # values:
-        #   scaleX: 4
-        #   scaleY: 4
+        duration: 250
+        values:
+          alpha: 1
 
       @failTween = @fail.tween
         values:
@@ -103,7 +122,15 @@ define 'ResultScreen', [
           rotation: 0
         easeFunc: Tween.Elastic.Out
       
-      @tweenIn.onStart.add =>
+      @excellentTween = @excellent.tween
+        duration: 700
+        values:
+          scaleX: 1.1
+          scaleY: 1.1
+          rotation: 0
+        easeFunc: Tween.Elastic.Out
+
+      @tweenIn.onComplete.add =>
         @scaleY = @scaleX = 1
 
         @fail.y = -250
@@ -114,6 +141,16 @@ define 'ResultScreen', [
         @clear.scaleY = 0
         @clear.rotation = -2
         @clearTween.start()
+
+        @excellent.scaleX = 0
+        @excellent.scaleY = 0
+        @excellent.rotation = -6
+        @excellentTween.start()
+
+        if @fail.visible
+          cg.app.sfx.badnom.play()
+        else
+          cg.app.sfx.yay.play()
 
         @visible = true
 
@@ -126,7 +163,6 @@ define 'ResultScreen', [
       
       @tweenOut.onComplete.add =>
         @visible = false
-        @selectItem @items['Level Select']
         return
 
     hide: (cb) ->
@@ -135,9 +171,20 @@ define 'ResultScreen', [
       @tweenOut.start()
 
     show: (cb) ->
+      @selectItem @items['Next Level']
+      @alpha = 0
+      excellent = cg.app.world.timeSplit > cg.app.world.level.excellent
       failed = cg.app.world.dotCount > 0
       @fail.visible = failed
-      @clear.visible = !failed
+      @clear.visible = !failed and !excellent
+      @excellent.visible = excellent and !failed
+      @excellentText.string = 'excellent: ' + cg.app.world.timer.timeStringFor cg.app.world.level.excellent
+      @excellentText.updateText()
+      @excellentText.visible = true
+
+      @timeLeftText.visible = !failed
+      @timeLeftText.string = 'score: ' + cg.app.world.timer.timeStringFor cg.app.world.timeSplit
+      @timeLeftText.updateText()
 
       @resume()
       @tweenIn.onComplete.addOnce cb  if cb?
@@ -150,15 +197,28 @@ define 'ResultScreen', [
           item.alpha = 1
         item.onBlur.add (item) ->
           item.alpha = 0.5
+      @items['Next Level'].onSelect.add =>
+        @hide =>
+          if cg.app.world.levelNumber >= cg.app.levels.length - 1
+            cg.app.world.hide ->
+              cg.app.levelSelect.show()
+          else
+            cg.app.world.resume()
+            cg.app.world.loadLevel cg.app.world.levelNumber + 1
+            cg.app.world.refreshMap()
+            cg.app.world.resetLevel()
 
       @items['Level Select'].onSelect.add =>
         @hide ->
           cg.app.world.hide ->
             cg.app.levelSelect.show()
-      @items['Retry'].onSelect.add =>
+      retry = =>
         @hide ->
           cg.app.world.resume()
           cg.app.world.refreshMap()
           cg.app.world.resetLevel()
+
+      @actions.retry.onHit.add retry
+      @items['Retry'].onSelect.add retry
       
       super

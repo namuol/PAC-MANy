@@ -40,6 +40,14 @@ module.exports = (grunt) ->
         tasks: 'coffee'
         options:
           nospawn: true
+    requirejs:
+      build:
+        options:
+          baseUrl: 'bin'
+          name: '../support/almond'
+          include: 'main'
+          insertRequire: ['main']
+          out: "bin/main-built.js"
 
   grunt.initConfig config
 
@@ -52,9 +60,10 @@ module.exports = (grunt) ->
   grunt.loadNpmTasks 'grunt-contrib-copy'
   grunt.loadNpmTasks 'grunt-contrib-watch'
   grunt.loadNpmTasks 'grunt-coffeecup'
+  grunt.loadNpmTasks 'grunt-contrib-requirejs'
 
   grunt.registerMultiTask 'copyfiles', 'Copy assets into example folders.', ->
     if grunt.file.exists @data.src
       grunt.file.copy @data.src, @data.dest
 
-  grunt.registerTask 'default', ['coffee', 'coffeecup', 'copy']
+  grunt.registerTask 'default', ['coffee', 'coffeecup', 'copy', 'requirejs']

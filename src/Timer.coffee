@@ -32,6 +32,10 @@ define 'Timer', [
     anchor:
       x: 0.5
       y: 0.5
+    timeStringFor: (time) ->
+      s = Math.floor time/1000
+      ms = time - s*1000
+      '' + s + pad ms, 3
     constructor: ->
       super
       @font = cg.app.font
@@ -86,7 +90,7 @@ define 'Timer', [
       @timeLeft = DEFAULT_DURATION + @bonusTime
       @stopped = false
       @updateText()
-    timeString: -> pad @timeLeft/1000, 3
+    timeString: -> @timeStringFor @timeLeft
     update: ->
       super
 

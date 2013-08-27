@@ -14,6 +14,7 @@ define 'GameWorld', [
   'combo/input/MultiTrigger'
   'Pac'
   'Timer'
+  'combo/text/TextString'
 ], (
   cg
   util
@@ -30,11 +31,35 @@ define 'GameWorld', [
   MultiTrigger
   Pac
   Timer
+  TextString
 ) ->
 
-  SCR_W = 352
-  SCR_H = 352
-  
+  class ScoreText extends TextString
+    init: ->
+      super
+      @alpha = 0
+      t1 = @tween
+        values:
+          alpha: 1
+          y: @y-24
+        easeFunc: Tween.Quadratic.Out
+        duration: 250
+      t2 = @tween
+        values:
+          y: @y-16
+        easeFunc: Tween.Bounce.Out
+        duration: 250
+      t3 = @tween
+        values:
+          y: @y-45
+          alpha: 0
+        delay: 500
+        duration: 250
+        easeFunc: Tween.Quadratic.Out
+      t1.onComplete.add => t2.start()
+      t2.onComplete.add => t3.start()
+      t3.onComplete.add => @visible = false
+      t1.start()
 
   class SpawnPoint extends SpriteActor
 
@@ -83,11 +108,24 @@ define 'GameWorld', [
       @input.mapKey cg.K_LEFT, 'left'
       @input.mapKey cg.K_DOWN, 'down'
       @input.mapKey cg.K_RIGHT, 'right'
+      @input.mapKey cg.K_SHIFT, 'speedUp'
       @actions.any = new MultiTrigger @input
       @actions.any.addTrigger @actions.up
       @actions.any.addTrigger @actions.left
       @actions.any.addTrigger @actions.down
       @actions.any.addTrigger @actions.right
+
+      @actions.speedUp.onHit.add =>
+        @speedUpTween = @tween
+          values:
+            timeScale: 4
+          duration: 1000
+          easeFunc: Tween.Linear
+        cg.app.timeScale = 3
+
+      @actions.speedUp.onRelease.add =>
+        @speedUpTween.stop()
+        cg.app.timeScale = 1
 
       @actions.reset.onHit.add =>
         @refreshMap()
@@ -144,12 +182,12 @@ define 'GameWorld', [
       @map = BitwiseTileMap.create cg.app.gfx.tiles, 22,22, 16,16
       @addChild @map, 'walls'
 
-      offscreen = new SpriteActor
+      @offscreen = new SpriteActor
         texture: 'offscreen'
-      @addChild offscreen, 'offscreen'
+      @addChild @offscreen, 'offscreen'
 
       # @layers.pacs.x = @layers.pacs.y = @layers.walls.x = @layers.walls.y = -16
-      @editing = true
+      @editing = false
 
       @onLevelChange = new Signal
       @onLevelChange.add =>
@@ -225,31 +263,53 @@ define 'GameWorld', [
       @onLevelChange.dispatch null
 
     loadLevel: (number) ->
+      @levelNumber = number
+      @level = cg.app.levels[number]
       @mapData = cg.app.levels[number].map
       @refreshMap()
-    
+      if @level.center
+        @offscreen.x = -8
+        @offscreen.y = -8
+        @x = @y = 8
+      else
+        @offscreen.x = 0
+        @offscreen.y = 0
+        @x = @y = 0
+    pacCount: ->
+      c = 0
+      for pac in @layers.pacs.children
+        ++c  unless pac.dead
     resetLevel: ->
       @currentSpawnPoint = 0
       @going = false
-      @dotCount = @layers.dots.children.length
+      @dotCount = 0
+      for dot in @layers.dots.children
+        ++@dotCount unless (dot.eaten and dot.power)
       @timer.stop()
       @timer.timeLeft = 10 * 1000
       @timer.resetBonus()
+      @timeSplit = -1
       @nextPac()
 
+    endGame: (forceFail=false) ->
+      cg.app.timeScale = 1
+      @pause()
+      if forceFail
+        @dotCount = 999
+      cg.app.resultScreen.show()
     nextPac: ->
       spawnPoint = @spawnPoints[@currentSpawnPoint]
       if not spawnPoint?
-        @pause()
-        cg.app.resultScreen.show()
+        @endGame()
         return
 
       for pac in @layers.pacs.children
         pac.replay()
-
+      @dotCount = 0
       for dot in @layers.dots.children
-        dot.reset()
-      @dotCount = @layers.dots.children.length
+        if not (dot.power and dot.eaten)
+          ++@dotCount
+          dot.reset()
       @canGo = false
       @pac = new Pac
         x: spawnPoint.x + 8 - 0.5
@@ -261,6 +321,27 @@ define 'GameWorld', [
       @going = false
       ++@currentSpawnPoint
       @delay 500, => @canGo = true
+    addTimerBonus: (amt) ->
+      scoreText = new ScoreText cg.app.font, '' + amt,
+        alignment: 'center'
+      scoreText.x = @pac.x
+      scoreText.y = @pac.y
+      @addChild scoreText, 'scoreText'
+      @timer.addBonus(amt)
+      if @timeSplit >= 0
+        @timeSplit += amt
+    eatDot: -> 
+      if --@dotCount <= 0
+        if @currentSpawnPoint > @spawnPoints.length - 2
+          @timeSplit = @timer.timeLeft
+          scoreText = new ScoreText cg.app.font, @timer.timeString(),
+            alignment: 'center'
+          scoreText.x = @pac.x
+          scoreText.y = @pac.y
+          scoreText.scaleX = scoreText.scaleY = 2
+          @addChild scoreText, 'scoreText'
+          @split = @timer.timeString()
+      @dotCount
 
     update: ->
       went = false

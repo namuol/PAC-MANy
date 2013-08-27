@@ -24,24 +24,6 @@ define 'Pac', [
   TextString
 ) ->
 
-  class ScoreText extends TextString
-    init: ->
-      super
-      @alpha = 0
-      t1 = @tween
-        values:
-          alpha: 1
-          y: @y-24
-        easeFunc: Tween.Quadratic.Out
-        duration: 250
-      t2 = @tween
-        values:
-          y: @y-16
-        easeFunc: Tween.Bounce.Out
-        duration: 250
-      t1.onComplete.add => t2.start()
-      t1.start()
-
   DEFAULT_SPEED = 90
   POWERFUL_SPEED = 90
 
@@ -157,7 +139,7 @@ define 'Pac', [
       else
         diff = Math.round(Math.floor(@y/16)*16 + 8) - 0.5 - @y
       (Math.abs(diff) <= 3) and (not (@hotspots[direction+'_DETECT'].didCollide or @hotspots[direction+'_DETECT2'].didCollide))
-    nom: (scale=1.5, duration=500) ->
+    nom: (scale=1.5, duration=500, cb=null) ->
       @scaleX = @scaleY = scale
       t = @tween
         duration: duration
@@ -165,30 +147,33 @@ define 'Pac', [
           scaleX: 1
           scaleY: 1
         easeFunc: Tween.Elastic.Out
+      t.onComplete.addOnce cb  if cb?
       t.start()
-    
+    makeEdible: ->
+      return  if not @evil
+      @anim = @anims.edible
+
     makePowerful: ->
       if not @evil
-        scoreText = new ScoreText cg.app.font, '1.0',
-          alignment: 'center'
-        scoreText.x = @x
-        scoreText.y = @y
-        cg.app.world.addChild scoreText, 'scoreText'
-        cg.app.world.timer.addBonus(1000)
+        cg.app.world.addTimerBonus(1000)
         @anim = @anims.powerful
+        for pac in cg.app.world.layers.pacs.children
+          continue  if pac is @
+          pac.makeEdible()
+        cg.app.sfx.powerup.play()
       @powerful = true
 
     canEat: (other) ->
       if @powerful
         if other.powerful
-          return @number < other.number
+          return @number > other.number
         else
           return true
       else
         if other.powerful
           return false
         else
-          return @number > other.number
+          return @number < other.number
 
     update: ->
       return  unless cg.app.world.going
@@ -266,25 +251,33 @@ define 'Pac', [
         continue  if pac.dead
 
         if @canEat(pac) and @touches(pac)
-          @nom 3, 700
+          if pac is cg.app.world.pac
+            app.sfx.badnom.play()
+            cb = => cg.app.world.endGame(true)
+          else
+            cg.app.world.addTimerBonus(1000)
+          @nom 3, 700, cb
           pac.visible = false
           pac.dead = true
+          if (cg.app.world.pacCount() <= 1) and (cg.app.world.dotCount <= 0)
+            cg.app.world.endGame()
 
       for dot in cg.app.world.layers.dots.children
         continue  if dot.eaten
 
         if dot.touches @
           dot.getEaten()
-          if --cg.app.world.dotCount <= 0
-            scoreText = new ScoreText cg.app.font, cg.app.world.timer.timeString(),
-              alignment: 'center'
-            scoreText.x = @x
-            scoreText.y = @y
-            cg.app.world.addChild scoreText, 'scoreText'
-            cg.app.world.split = cg.app.world.timer.timeString()
-            @nom 4, 900
+          if cg.app.world.eatDot(dot) <= 0
+            @nom 4, 900, =>
+              if not (cg.app.world.pac.powerful and cg.app.world.pacCount() > 1)
+                cg.app.world.endGame()
+            app.sfx.bignom.play()
           else
             @nom()
+            if @evil
+              app.sfx.evilnom.play()
+            else
+              app.sfx.nom.play()
 
           if dot.power
             @makePowerful()

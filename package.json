@@ -11,6 +11,7 @@
     "grunt-shell": "~0.2.2"
   },
   "dependencies": {
-    "grunt-s3": "~0.2.0-alpha.2"
+    "grunt-s3": "~0.2.0-alpha.2",
+    "grunt-contrib-requirejs": "~0.4.1"
   }
 }

@@ -17,15 +17,29 @@ define 'TitleScreen', [
       STR
     ]
     constructor: ->
+      
       @font = cg.app.font
       @selectKey = [cg.K_X, cg.K_ENTER]
       @alignment = 'center'
       @spacing = 0.85
       @lineHeight = 0.75
       super
+
+      @pakku = new SpriteActor
+        anim: cg.app.sheet.anim [0,1,2,3,4,5,4,3,2,1], 30
+        scaleX: 6
+        scaleY: 6
+        width: 13
+        height: 13
+        anchor:
+          x: 0.5
+          y: 0.5
+        y: 230
+      @addChild @pakku
+
       @startX = @x
       @title = @addChild new SpriteActor
-        y: -100
+        y: -130
         anchor:
           x: 0.5
           y: 0.5
@@ -36,7 +50,7 @@ define 'TitleScreen', [
       @titleTweenIn = @title.tween
         duration: 1000
         values:
-          y: @title.height/2 + 30
+          y: @title.height/2 + 10
         easeFunc: Tween.Elastic.Out
       @titleTweenIn.onComplete.add => @titleTweenA.start()
 
@@ -106,3 +120,7 @@ define 'TitleScreen', [
           levelSelect.show()
 
       super
+
+    update: ->
+      super
+      @pakku.rotation += 0.1
